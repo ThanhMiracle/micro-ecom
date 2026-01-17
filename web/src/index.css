@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Candy theme background */
+body {
+  @apply min-h-screen text-slate-900;
+  background:
+    radial-gradient(900px 600px at 10% 10%, rgba(236,72,153,0.16), transparent 55%),
+    radial-gradient(900px 600px at 90% 20%, rgba(59,130,246,0.16), transparent 55%),
+    radial-gradient(900px 600px at 40% 90%, rgba(34,197,94,0.14), transparent 55%),
+    linear-gradient(180deg, rgba(248,250,252,1), rgba(255,255,255,1));
+}
+
+/* Glossy card */
+.candy-card {
+  @apply rounded-3xl border bg-white/75 backdrop-blur shadow-sm;
+  box-shadow:
+    0 12px 30px rgba(15,23,42,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.9);
+}
+
+/* Gradient button */
+.candy-btn {
+  @apply inline-flex items-center justify-center rounded-2xl px-4 py-2 font-extrabold text-white transition;
+  background: linear-gradient(90deg, #f472b6, #fb7185, #f59e0b, #22c55e, #3b82f6, #a78bfa);
+  box-shadow: 0 12px 24px rgba(236,72,153,0.22);
+}
+.candy-btn:hover { transform: translateY(-1px); filter: saturate(1.05); }
+.candy-btn:active { transform: translateY(0px); }
+
+/* Outline candy button */
+.candy-btn-outline {
+  @apply inline-flex items-center justify-center rounded-2xl px-4 py-2 font-extrabold transition;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(236,72,153,0.35);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.candy-btn-outline:hover { border-color: rgba(59,130,246,0.45); }
+
+/* Cute input */
+.candy-input {
+  @apply w-full rounded-2xl border bg-white/70 px-4 py-3 outline-none transition;
+  border-color: rgba(148,163,184,0.55);
+}
+.candy-input:focus {
+  border-color: rgba(236,72,153,0.65);
+  box-shadow: 0 0 0 4px rgba(236,72,153,0.15);
+}
+
+/* Sparkle dot */
+.sparkle {
+  width: 10px; height: 10px; border-radius: 9999px;
+  background: radial-gradient(circle at 30% 30%, #fff, rgba(255,255,255,0.2) 35%, transparent 60%),
+              linear-gradient(90deg, #f472b6, #60a5fa, #34d399);
+  box-shadow: 0 6px 16px rgba(99,102,241,0.18);
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  @apply relative overflow-hidden rounded-2xl bg-white/60;
+  border: 1px solid rgba(148,163,184,0.25);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(236,72,153,0.10),
+    rgba(59,130,246,0.10),
+    transparent
+  );
+  animation: shimmer 1.2s infinite;
+}
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}

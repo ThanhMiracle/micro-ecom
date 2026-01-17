@@ -1,0 +1,109 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      POSTGRES_USER: microshop
+      POSTGRES_PASSWORD: microshop
+      POSTGRES_DB: microshop
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U microshop -d microshop"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  auth-service:
+    build:
+      context: ./services
+      dockerfile: auth-service/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
+      DB_SCHEMA: auth
+      JWT_SECRET: change-me
+      FRONTEND_BASE_URL: http://localhost:5173
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: admin123
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    ports:
+      - "8001:8000"
+
+  product-service:
+    build:
+      context: ./services
+      dockerfile: product-service/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
+      DB_SCHEMA: product
+      JWT_SECRET: change-me
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8002:8000"
+
+  order-service:
+    build:
+      context: ./services
+      dockerfile: order-service/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
+      DB_SCHEMA: orders
+      JWT_SECRET: change-me
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      PRODUCT_URL_INTERNAL: http://product-service:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    ports:
+      - "8003:8000"
+
+  notification-service:
+    build:
+      context: ./services
+      dockerfile: notification-service/Dockerfile
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: your_email@gmail.com
+      SMTP_PASS: your_app_password
+      FROM_EMAIL: MicroShop <your_email@gmail.com>
+    depends_on:
+      rabbitmq:
+        condition: service_started
+    ports:
+      - "8004:8000"
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_AUTH_URL: http://localhost:8001
+        VITE_PRODUCT_URL: http://localhost:8002
+        VITE_ORDER_URL: http://localhost:8003
+    ports:
+      - "5173:80"
+    depends_on:
+      - auth-service
+      - product-service
+      - order-service
+
+volumes:
+  postgres_data:
