@@ -80,11 +80,11 @@ services:
       dockerfile: notification-service/Dockerfile
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      SMTP_HOST: smtp.gmail.com
-      SMTP_PORT: 587
-      SMTP_USER: your_email@gmail.com
-      SMTP_PASS: your_app_password
-      FROM_EMAIL: MicroShop <your_email@gmail.com>
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_USER: test
+      SMTP_PASS: test
+      FROM_EMAIL: MicroShop <test@local>
     depends_on:
       rabbitmq:
         condition: service_started
@@ -104,6 +104,12 @@ services:
       - auth-service
       - product-service
       - order-service
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+    - "1025:1025"
+    - "8025:8025"
+
 
 volumes:
   postgres_data:
