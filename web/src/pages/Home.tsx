@@ -13,9 +13,15 @@ type Product = {
 
 function resolveImageUrl(imageUrl: string | null | undefined) {
   if (!imageUrl) return null;
+
+  // absolute URL from backend
   if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
-  return `${import.meta.env.VITE_PRODUCT_URL}${imageUrl}`; // backend returns "/static/xxx"
+
+  // runtime env aware (comes from api.ts)
+  const base = productApi.defaults.baseURL || "";
+  return `${base}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
 }
+
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);

@@ -14,11 +14,15 @@ type Product = {
 
 function resolveImageUrl(imageUrl: string | null | undefined) {
   if (!imageUrl) return null;
-  // If backend returns absolute URL, use it as-is
+
+  // absolute URL from backend
   if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
-  // Otherwise treat as relative to product service base URL
-  return `${import.meta.env.VITE_PRODUCT_URL}${imageUrl}`;
+
+  // use axios baseURL (runtime env aware)
+  const base = productApi.defaults.baseURL || "";
+  return `${base}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
 }
+
 
 export default function AdminProducts() {
   const [rows, setRows] = useState<Product[]>([]);

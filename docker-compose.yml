@@ -23,19 +23,21 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     networks:
       - shop-net
 
   auth:
     image: thanh2909/auth-service:v0.0
-    #build:
-      #context: ./services
-      #dockerfile: auth-service/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: auth
       JWT_SECRET: change-me
-      FRONTEND_BASE_URL: http://localhost:5173
+      FRONTEND_BASE_URL: http://localhost:3000
       RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
       ADMIN_EMAIL: admin@example.com
       ADMIN_PASSWORD: admin123
@@ -43,14 +45,13 @@ services:
       postgres:
         condition: service_healthy
       rabbit:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8001:8000"
     networks:
       - shop-net
 
   product:
-    #image: thanh2909/product-service:v0.0
     build:
       context: ./services
       dockerfile: product-service/Dockerfile
@@ -68,9 +69,6 @@ services:
 
   order:
     image: thanh2909/order-service:v0.0
-    #build:
-     # context: ./services
-      #dockerfile: order-service/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: orders
@@ -81,44 +79,43 @@ services:
       postgres:
         condition: service_healthy
       rabbit:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8003:8000"
     networks:
       - shop-net
 
   notify:
-    image: thanh2909/notify-service:v0.0
-    #build:
-    #  context: ./services
-     # dockerfile: notification-service/Dockerfile
+    #image: thanh2909/notify-service:v0.0
+    build:
+      context: ./services
+      dockerfile: notification-service/Dockerfile
+    # 🔥 Start the RabbitMQ consumer/worker (sends emails via Mailhog)
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
       SMTP_HOST: mailhog
       SMTP_PORT: 1025
+      SMTP_USE_TLS: "false"
+      SMTP_USE_AUTH: "false"
       SMTP_USER: test
       SMTP_PASS: test
       FROM_EMAIL: MicroShop <test@local>
     depends_on:
       rabbit:
-        condition: service_started
-    ports:
-      - "8004:8000"
+        condition: service_healthy
     networks:
       - shop-net
 
   web:
-    image: thanh2909/web-service:v0.0
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    # image: thanh2909/web-service:v0.0
     environment:
       VITE_AUTH_URL: http://localhost:8001
       VITE_PRODUCT_URL: http://localhost:8002
       VITE_ORDER_URL: http://localhost:8003
-    #build:
-      #context: ./web
-      #args:
-        #VITE_AUTH_URL: http://localhost:8001
-        #VITE_PRODUCT_URL: http://localhost:8002
-        #VITE_ORDER_URL: http://localhost:8003
     ports:
       - "3000:80"
     depends_on:

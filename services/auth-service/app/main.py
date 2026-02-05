@@ -1,4 +1,5 @@
 import os
+import time
 import hashlib
 import base64
 
@@ -22,7 +23,8 @@ from shared.security import require_user
 JWT_SECRET = os.environ["JWT_SECRET"]
 ALGO = "HS256"
 
-FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
+# IMPORTANT: Set this to http://localhost:3000 in docker-compose for nginx web
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip("/")
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "")
 
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
@@ -33,9 +35,12 @@ pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # Hard limit just to prevent abuse (not bcrypt-related)
 MAX_PASSWORD_BYTES = 4096
 
+# Access token lifetime (seconds)
+ACCESS_TOKEN_TTL = int(os.getenv("ACCESS_TOKEN_TTL", str(60 * 60 * 24)))  # 24h
+
 
 # -------------------------------------------------------------------
-# Password helpers (Option 1)
+# Password helpers
 # -------------------------------------------------------------------
 def _validate_password(pw: str) -> None:
     if not pw:
@@ -97,8 +102,6 @@ def seed_admin(db: Session):
     if not ADMIN_EMAIL or not ADMIN_PASSWORD:
         return
 
-    print("SEED_ADMIN pw bytes:", len(ADMIN_PASSWORD.encode("utf-8")))
-
     if db.query(User).filter(User.email == ADMIN_EMAIL).first():
         return
 
@@ -133,8 +136,6 @@ def startup():
 # -------------------------------------------------------------------
 @app.post("/auth/register")
 def register(data: RegisterIn, db: Session = Depends(get_db)):
-    print("REGISTER pw bytes:", len(data.password.encode("utf-8")))
-
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(status_code=409, detail="Email already registered")
 
@@ -150,8 +151,11 @@ def register(data: RegisterIn, db: Session = Depends(get_db)):
     db.refresh(user)
 
     token = make_verify_token(user.id, user.email)
+
+    # Frontend route receives token, then frontend should call backend /auth/verify
     verify_url = f"{FRONTEND_BASE_URL}/verify?token={token}"
 
+    # Publish event for notify-service (Mailhog)
     if RABBITMQ_URL:
         publish(
             RABBITMQ_URL,
@@ -163,7 +167,19 @@ def register(data: RegisterIn, db: Session = Depends(get_db)):
 
 
 @app.get("/auth/verify")
-def verify(token: str, db: Session = Depends(get_db)):
+def verify_get(token: str, db: Session = Depends(get_db)):
+    return _verify_token(token, db)
+
+
+@app.post("/auth/verify")
+def verify_post(body: dict, db: Session = Depends(get_db)):
+    token = body.get("token")
+    if not token:
+        raise HTTPException(status_code=400, detail="Missing token")
+    return _verify_token(token, db)
+
+
+def _verify_token(token: str, db: Session):
     try:
         data = decode_verify_token(token)
     except Exception:
@@ -184,8 +200,6 @@ def verify(token: str, db: Session = Depends(get_db)):
 
 @app.post("/auth/login", response_model=TokenOut)
 def login(data: LoginIn, db: Session = Depends(get_db)):
-    print("LOGIN pw bytes:", len(data.password.encode("utf-8")))
-
     user = db.query(User).filter(User.email == data.email).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -196,8 +210,16 @@ def login(data: LoginIn, db: Session = Depends(get_db)):
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Email not verified")
 
+    now = int(time.time())
     token = jwt.encode(
-        {"sub": str(user.id), "email": user.email, "is_admin": user.is_admin},
+        {
+            "sub": str(user.id),
+            "email": user.email,
+            "is_admin": user.is_admin,
+            "iat": now,
+            "exp": now + ACCESS_TOKEN_TTL,
+            "typ": "access",
+        },
         JWT_SECRET,
         algorithm=ALGO,
     )
