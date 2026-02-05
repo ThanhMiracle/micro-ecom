@@ -10,22 +10,30 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# (Optional) Only enable if requirements include native builds (cryptography/numpy/psycopg2/etc.)
+# (Optional) enable only if requirements include native builds
 # RUN apt-get update && apt-get install -y --no-install-recommends \
 #       build-essential \
 #     && rm -rf /var/lib/apt/lists/*
 
-# Copy deps first for better layer caching
+# Copy requirements first (better cache)
 COPY order-service/requirements.txt /app/requirements.txt
 
-# Faster rebuilds with BuildKit pip cache
+# Install deps with BuildKit cache + upgrade tooling
 RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip setuptools wheel && \
     pip install -r /app/requirements.txt
 
-# Copy code last
+# Copy source last
 COPY order-service/app /app/app
 COPY shared /app/shared
 
+# Run as non-root
+RUN useradd -m -u 10001 appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000
+
+HEALTHCHECK --interval=10s --timeout=3s --retries=10 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -32,7 +32,10 @@ services:
       - shop-net
 
   auth:
-    image: thanh2909/auth-service:v0.0
+    # image: thanh2909/auth-service:v0.0
+    build:
+      context: ./services
+      dockerfile: auth-service/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: auth
@@ -52,6 +55,7 @@ services:
       - shop-net
 
   product:
+  # image: thanh2909/order-service:v0.0
     build:
       context: ./services
       dockerfile: product-service/Dockerfile
@@ -68,7 +72,10 @@ services:
       - shop-net
 
   order:
-    image: thanh2909/order-service:v0.0
+    # image: thanh2909/order-service:v0.0
+    build:
+      context: ./services
+      dockerfile: order-service/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: orders

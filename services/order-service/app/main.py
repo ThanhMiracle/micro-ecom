@@ -112,3 +112,7 @@ def pay_order(order_id: int, claims: dict = Depends(require_user), db: Session =
         )
 
     return {"ok": True, "status": "PAID"}
+
+@app.get("/health")
+def health():
+    return {"ok": True}

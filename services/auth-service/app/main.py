@@ -238,3 +238,7 @@ def me(claims: dict = Depends(require_user), db: Session = Depends(get_db)):
         is_admin=user.is_admin,
         is_verified=user.is_verified,
     )
+
+@app.get("/health")
+def health():
+    return {"ok": True}

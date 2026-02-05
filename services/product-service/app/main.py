@@ -235,3 +235,7 @@ def upload_product_image(
         return to_out(p)
 
     raise HTTPException(500, f"Unknown STORAGE_BACKEND={STORAGE_BACKEND}")
+
+@app.get("/health")
+def health():
+    return {"ok": True}
