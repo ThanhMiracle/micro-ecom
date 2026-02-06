@@ -1,6 +1,7 @@
 from pathlib import Path
 import uuid
 import os
+import logging
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -15,15 +16,25 @@ from .models import Product
 from .schemas import ProductOut, ProductCreate, ProductUpdate
 from shared.security import require_user, require_admin
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("product-service")
 
 # =========================
 # Storage config
 # =========================
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "local").lower()  # local | s3
 
-# Local storage
-UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "uploads"))
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+# Local storage (explicit contract)
+# - When STORAGE_BACKEND=local: UPLOAD_DIR must be set and must be a writable path (typically a mounted volume)
+# - When STORAGE_BACKEND=s3: UPLOAD_DIR is not required (uploads go to S3)
+if STORAGE_BACKEND == "local":
+    if "UPLOAD_DIR" not in os.environ:
+        raise RuntimeError("UPLOAD_DIR environment variable must be set when STORAGE_BACKEND=local")
+    UPLOAD_DIR = Path(os.environ["UPLOAD_DIR"])
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+else:
+    # still define it for type/clarity; not used in s3 mode
+    UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "uploads"))
 
 # S3 storage (only required when STORAGE_BACKEND=s3)
 S3_BUCKET = os.getenv("S3_BUCKET")
@@ -42,6 +53,7 @@ ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp"}
 app = FastAPI(title="product-service")
 
 # Serve uploaded images only in LOCAL mode
+# NOTE: This mounts /static/* -> files from UPLOAD_DIR (filesystem)
 if STORAGE_BACKEND == "local":
     app.mount("/static", StaticFiles(directory=str(UPLOAD_DIR)), name="static")
 
@@ -66,6 +78,48 @@ def get_db():
 def startup():
     init_schema()
     Base.metadata.create_all(bind=engine)
+    if STORAGE_BACKEND == "local":
+        logger.info("Storage backend=local; UPLOAD_DIR=%s; serving at /static/*", str(UPLOAD_DIR))
+    else:
+        logger.info("Storage backend=s3; bucket=%s region=%s public_base=%s", S3_BUCKET, AWS_REGION, PUBLIC_BASE_URL or "(none)")
+
+
+# -------------------------
+# Helpers
+# -------------------------
+def normalize_image_url(url: str | None) -> str | None:
+    """
+    Backward compatible fixes for old DB values.
+    - Local mode: serve files under /static (mounted to UPLOAD_DIR)
+    - S3 mode: keep absolute URLs
+    """
+    if not url:
+        return None
+
+    u = url.strip()
+    if not u:
+        return None
+
+    # Absolute URL (S3/CloudFront) - keep as-is
+    if u.startswith("http://") or u.startswith("https://"):
+        return u
+
+    # Already correct for local
+    if u.startswith("/static/"):
+        return u
+
+    # Old/bad records: "/prod_1_xxx.jpg" or "prod_1_xxx.jpg"
+    if u.startswith("/prod_") or u.startswith("prod_"):
+        filename = u.lstrip("/")
+        return f"/static/{filename}"
+
+    # Sometimes people used "/uploads/..." or "uploads/..."
+    if u.startswith("/uploads/"):
+        return u.replace("/uploads/", "/static/", 1)
+    if u.startswith("uploads/"):
+        return f"/static/{u[len('uploads/'):]}"  # drop uploads/
+
+    return u
 
 
 def to_out(p: Product) -> ProductOut:
@@ -75,11 +129,13 @@ def to_out(p: Product) -> ProductOut:
         description=p.description,
         price=float(p.price),
         published=p.published,
-        image_url=p.image_url,
+        image_url=normalize_image_url(p.image_url),
     )
 
 
-# Public homepage products
+# -------------------------
+# Public endpoints
+# -------------------------
 @app.get("/products", response_model=list[ProductOut])
 def list_published(db: Session = Depends(get_db)):
     rows = db.query(Product).filter(Product.published == True).order_by(Product.id.desc()).all()
@@ -94,7 +150,9 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
     return to_out(r)
 
 
+# -------------------------
 # Admin endpoints
+# -------------------------
 @app.get("/admin/products", response_model=list[ProductOut])
 def admin_list(claims: dict = Depends(require_user), db: Session = Depends(get_db)):
     require_admin(claims)
@@ -152,9 +210,11 @@ def admin_delete(product_id: int, claims: dict = Depends(require_user), db: Sess
     return {"ok": True}
 
 
-# ✅ Upload image for a specific product (admin-only)
+# -------------------------
+# Upload image (admin-only)
+# -------------------------
 @app.post("/admin/products/{product_id}/image", response_model=ProductOut)
-def upload_product_image(
+async def upload_product_image(
     product_id: int,
     file: UploadFile = File(...),
     claims: dict = Depends(require_user),
@@ -172,7 +232,7 @@ def upload_product_image(
     if ext not in ALLOWED_EXT:
         raise HTTPException(400, "Only .png, .jpg, .jpeg, .webp allowed")
 
-    # Optional MIME check (clients sometimes omit it)
+    # Optional MIME check
     if file.content_type and file.content_type not in ALLOWED_MIME:
         raise HTTPException(400, f"Unsupported content type: {file.content_type}")
 
@@ -183,12 +243,15 @@ def upload_product_image(
         out_name = f"prod_{product_id}_{uuid.uuid4().hex}{ext}"
         dest = UPLOAD_DIR / out_name
 
-        data = file.file.read()
-        if not data:
-            raise HTTPException(400, "Empty file")
+        data = await file.read()
+        try:
+            if not data:
+                raise HTTPException(400, "Empty file")
+            dest.write_bytes(data)
+        finally:
+            await file.close()
 
-        dest.write_bytes(data)
-
+        # Always store correct local URL
         p.image_url = f"/static/{out_name}"
         db.commit()
         db.refresh(p)
@@ -211,8 +274,13 @@ def upload_product_image(
             )
         except (BotoCoreError, ClientError) as e:
             raise HTTPException(500, f"Failed to upload to S3: {str(e)}")
+        finally:
+            try:
+                await file.close()
+            except Exception:
+                pass
 
-        # Build URL (CloudFront recommended for private bucket)
+        # Build public URL
         if PUBLIC_BASE_URL:
             image_url = f"{PUBLIC_BASE_URL}/{key}"
         else:
@@ -235,6 +303,7 @@ def upload_product_image(
         return to_out(p)
 
     raise HTTPException(500, f"Unknown STORAGE_BACKEND={STORAGE_BACKEND}")
+
 
 @app.get("/health")
 def health():

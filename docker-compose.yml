@@ -32,10 +32,10 @@ services:
       - shop-net
 
   auth:
-    # image: thanh2909/auth-service:v0.0
-    build:
-      context: ./services
-      dockerfile: auth-service/Dockerfile
+    image: thanh2909/auth-service:v0.1
+    # build:
+    #   context: ./services
+    #   dockerfile: auth-service/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: auth
@@ -55,14 +55,15 @@ services:
       - shop-net
 
   product:
-  # image: thanh2909/order-service:v0.0
-    build:
-      context: ./services
-      dockerfile: product-service/Dockerfile
+    image: thanh2909/product-service:v0.2
+    # build:
+    #   context: ./services
+    #   dockerfile: product-service/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: product
       JWT_SECRET: change-me
+      UPLOAD_DIR: /app/uploads   # 🔴 important: match FastAPI path
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,12 +71,14 @@ services:
       - "8002:8000"
     networks:
       - shop-net
+    volumes:
+      - product_uploads:/app/uploads   # 🔴 persist uploads here
 
   order:
-    # image: thanh2909/order-service:v0.0
-    build:
-      context: ./services
-      dockerfile: order-service/Dockerfile
+    image: thanh2909/order-service:v0.1
+    # build:
+    #   context: ./services
+    #   dockerfile: order-service/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: orders
@@ -92,11 +95,12 @@ services:
     networks:
       - shop-net
 
+
   notify:
-    #image: thanh2909/notify-service:v0.0
-    build:
-      context: ./services
-      dockerfile: notification-service/Dockerfile
+    image: thanh2909/notify-service:v0.1
+    # build:
+    #   context: ./services
+    #   dockerfile: notification-service/Dockerfile
     # 🔥 Start the RabbitMQ consumer/worker (sends emails via Mailhog)
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
@@ -115,10 +119,10 @@ services:
       - shop-net
 
   web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    # image: thanh2909/web-service:v0.0
+    # build:
+    #   context: ./web
+    #   dockerfile: Dockerfile
+    image: thanh2909/web-service:v0.1
     environment:
       VITE_AUTH_URL: http://localhost:8001
       VITE_PRODUCT_URL: http://localhost:8002
@@ -142,7 +146,7 @@ services:
 
 volumes:
   postgres_data:
-
+  product_uploads:
 networks:
   shop-net:
     driver: bridge

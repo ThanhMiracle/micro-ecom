@@ -14,14 +14,19 @@ type Product = {
 function resolveImageUrl(imageUrl: string | null | undefined) {
   if (!imageUrl) return null;
 
-  // absolute URL from backend
-  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
+  // Absolute URL from backend
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
 
-  // runtime env aware (comes from api.ts)
-  const base = productApi.defaults.baseURL || "";
-  return `${base}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+  // Prefer the axios baseURL (runtime env aware if you fixed api.ts)
+  const base = productApi.defaults.baseURL;
+
+  // If baseURL is missing, fall back to relative path (will hit frontend domain)
+  // This helps debugging and avoids returning "null".
+  if (!base) return imageUrl;
+
+  // Safe join (handles leading/trailing slashes correctly)
+  return new URL(imageUrl, base.endsWith("/") ? base : base + "/").toString();
 }
-
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -83,6 +88,12 @@ export default function Home() {
                       alt={p.name}
                       className="h-44 w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                       loading="lazy"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        // Hide broken image instead of showing alt text
+                        const el = e.currentTarget;
+                        el.style.display = "none";
+                      }}
                     />
                   ) : (
                     <div className="h-44 w-full bg-gradient-to-br from-pink-200 via-yellow-100 to-sky-200" />
@@ -112,7 +123,9 @@ export default function Home() {
                 </button>
 
                 <div className="pointer-events-none mt-4 flex justify-between text-xs text-slate-500 opacity-0 transition group-hover:opacity-100">
-                  <span>✨ glossy</span><span>🍬 candy</span><span>💌 email</span>
+                  <span>✨ glossy</span>
+                  <span>🍬 candy</span>
+                  <span>💌 email</span>
                 </div>
               </div>
             );
