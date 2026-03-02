@@ -1,9 +1,10 @@
 services:
-  # CI safety: don't force a fixed name (lets -p microshop-ci-XXX isolate builds)
+  # CI: no fixed container_name; no host ports; no persistent volume
   postgres:
-    container_name: ""
+    ports: []
+    volumes: []
 
-  # (Optional) build runtime images from repo
+  # (Optional) build runtime images from repo for CI
   auth:
     build:
       context: ./services

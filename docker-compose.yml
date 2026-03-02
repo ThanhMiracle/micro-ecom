@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16
-    container_name: postgres
+    # container_name: postgres   # 👈 bỏ để tránh conflict
     environment:
       POSTGRES_USER: microshop
       POSTGRES_PASSWORD: microshop
@@ -33,9 +33,6 @@ services:
 
   auth:
     image: thanh2909/auth-service:v0.3
-    # build:
-    #   context: ./services
-    #   dockerfile: auth-service/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: auth
@@ -57,15 +54,12 @@ services:
   product:
     image: thanh2909/product-service:v0.3
     user: "0:0"
-    # build:
-    #   context: ./services
-    #   dockerfile: product-service/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: product
       JWT_SECRET: change-me
-      UPLOAD_DIR: /app/uploads   # 🔴 important: match FastAPI path
-      FRONTEND_ORIGINS: http://localhost:3000 # 🔴 CORS for local dev
+      UPLOAD_DIR: /app/uploads
+      FRONTEND_ORIGINS: http://localhost:3000
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,13 +68,10 @@ services:
     networks:
       - shop-net
     volumes:
-      - product_uploads:/app/uploads   # 🔴 persist uploads here
+      - product_uploads:/app/uploads
 
   order:
     image: thanh2909/order-service:v0.3
-    # build:
-    #   context: ./services
-    #   dockerfile: order-service/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: orders
@@ -97,13 +88,8 @@ services:
     networks:
       - shop-net
 
-
   notify:
     image: thanh2909/notify-service:v0.3
-    # build:
-    #   context: ./services
-    #   dockerfile: notification-service/Dockerfile
-    #🔥 Start the RabbitMQ consumer/worker (sends emails via Mailhog)
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
@@ -120,12 +106,8 @@ services:
     networks:
       - shop-net
 
-
   payment:
     image: thanh2909/payment-service:v0.3
-    # build:
-    #   context: ./services
-    #   dockerfile: payment-service/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: payment
@@ -133,8 +115,6 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
       ORDER_URL_INTERNAL: http://order:8000
       PRODUCT_URL_INTERNAL: http://product:8000
-      # Optional: if your service needs a public base url / callback url
-      # PAYMENT_BASE_URL: http://localhost:8004
     depends_on:
       postgres:
         condition: service_healthy
@@ -145,11 +125,7 @@ services:
     networks:
       - shop-net
 
-      
   web:
-    # build:
-    #   context: ./web
-    #   dockerfile: Dockerfile
     image: thanh2909/web-service:v0.3
     environment:
       VITE_AUTH_URL: http://localhost:8001
@@ -177,6 +153,7 @@ services:
 volumes:
   postgres_data:
   product_uploads:
+
 networks:
   shop-net:
     driver: bridge
