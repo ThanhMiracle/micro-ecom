@@ -23,10 +23,10 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # 1b) Builder stage for dev/test wheels
 ############################
 FROM builder AS builder-dev
-COPY notification-service/requirements-dev.txt ./requirements-dev.txt
+COPY notification-service/requirements.txt ./requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -eux; \
-    pip wheel --wheel-dir /wheels-dev --prefer-binary -r ./requirements-dev.txt
+    pip wheel --wheel-dir /wheels-dev --prefer-binary -r ./requirements.txt
 
 
 ############################
@@ -46,10 +46,10 @@ WORKDIR /app
 ENV RABBITMQ_URL=amqp://guest:guest@localhost:5672/
 
 COPY --from=builder-dev /wheels-dev /wheels-dev
-COPY notification-service/requirements-dev.txt ./requirements-dev.txt
+COPY notification-service/requirements.txt ./requirements.txt
 
 RUN set -eux; \
-    pip install --no-index --find-links=/wheels-dev -r ./requirements-dev.txt; \
+    pip install --no-index --find-links=/wheels-dev -r ./requirements.txt; \
     rm -rf /wheels-dev
 
 # copy code + tests

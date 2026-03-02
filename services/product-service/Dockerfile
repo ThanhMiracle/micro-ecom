@@ -23,11 +23,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 ############################
 FROM builder AS builder-dev
 
-COPY product-service/requirements-dev.txt ./requirements-dev.txt
+COPY product-service/requirements.txt ./requirements.txt
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -eux; \
-    pip wheel --wheel-dir /wheels-dev --prefer-binary -r ./requirements-dev.txt
+    pip wheel --wheel-dir /wheels-dev --prefer-binary -r ./requirements.txt
 
 
 ############################
@@ -49,10 +49,10 @@ ENV UPLOAD_DIR=/tmp/uploads
 ENV FRONTEND_ORIGINS=http://localhost:3000
 
 COPY --from=builder-dev /wheels-dev /wheels-dev
-COPY product-service/requirements-dev.txt ./requirements-dev.txt
+COPY product-service/requirements.txt ./requirements.txt
 
 RUN set -eux; \
-    pip install --no-index --find-links=/wheels-dev -r ./requirements-dev.txt; \
+    pip install --no-index --find-links=/wheels-dev -r ./requirements.txt; \
     rm -rf /wheels-dev
 
 COPY product-service/app ./app

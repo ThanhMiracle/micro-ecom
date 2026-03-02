@@ -24,11 +24,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 ############################
 FROM builder AS builder-dev
 
-COPY payment-service/requirements-dev.txt ./requirements-dev.txt
+COPY payment-service/requirements.txt ./requirements.txt
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -eux; \
-    pip wheel --wheel-dir /wheels-dev --prefer-binary -r ./requirements-dev.txt
+    pip wheel --wheel-dir /wheels-dev --prefer-binary -r ./requirements.txt
 
 
 ############################
@@ -48,10 +48,10 @@ WORKDIR /app
 ENV ORDER_URL_INTERNAL=http://order:8000
 
 COPY --from=builder-dev /wheels-dev /wheels-dev
-COPY payment-service/requirements-dev.txt ./requirements-dev.txt
+COPY payment-service/requirements.txt ./requirements.txt
 
 RUN set -eux; \
-    pip install --no-index --find-links=/wheels-dev -r ./requirements-dev.txt; \
+    pip install --no-index --find-links=/wheels-dev -r ./requirements.txt; \
     rm -rf /wheels-dev
 
 COPY payment-service/app ./app
