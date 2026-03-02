@@ -22,7 +22,7 @@ pipeline {
 
     stage('Preflight') {
       steps {
-        sh(label: 'preflight', shell: '/bin/bash', script: '''#!/usr/bin/env bash
+        sh '''#!/usr/bin/env bash
           set -euo pipefail
           echo "================ PRE-FLIGHT ================"
           echo "Node: $(hostname)"
@@ -48,13 +48,13 @@ pipeline {
 
           echo "== DNS sanity (host) =="
           getent hosts api.github.com || true
-        ''')
+        '''
       }
     }
 
     stage('Build') {
       steps {
-        sh(label: 'build', shell: '/bin/bash', script: '''#!/usr/bin/env bash
+        sh '''#!/usr/bin/env bash
           set -euxo pipefail
           echo "================ BUILD ================"
 
@@ -74,13 +74,13 @@ pipeline {
 
           echo "== Building images =="
           $C build --pull
-        ''')
+        '''
       }
     }
 
     stage('Test') {
       steps {
-        sh(label: 'test', shell: '/bin/bash', script: '''#!/usr/bin/env bash
+        sh '''#!/usr/bin/env bash
           set -euxo pipefail
           echo "================ TEST ================"
 
@@ -139,14 +139,14 @@ pipeline {
           run_test order-tests
           run_test payment-tests
           run_test notify-tests
-        ''')
+        '''
       }
     }
   }
 
   post {
     always {
-      sh(label: 'post', shell: '/bin/bash', script: '''#!/usr/bin/env bash
+      sh '''#!/usr/bin/env bash
         set +e
         echo "================ POST / ALWAYS ================"
 
@@ -171,7 +171,7 @@ pipeline {
 
         echo "== Cleaning up =="
         $C down -v --remove-orphans || true
-      ''')
+      '''
 
       archiveArtifacts artifacts: 'ci-artifacts/*', allowEmptyArchive: true
       cleanWs()
