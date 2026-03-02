@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import httpx
-
+from sqlalchemy.exc import SQLAlchemyError
 from .db import Base, engine, SessionLocal, init_schema
 from .models import Order, OrderItem
 from .schemas import OrderCreateIn, OrderOut, OrderItemOut

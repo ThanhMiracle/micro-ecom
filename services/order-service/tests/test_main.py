@@ -3,6 +3,8 @@ import httpx
 import pytest
 from fastapi import HTTPException
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+
 
 
 def test_health(client):
@@ -102,25 +104,23 @@ def test_create_order_request_error_503(client, app_and_db, monkeypatch):
 
 
 def test_create_order_db_failure_500(client, app_and_db, monkeypatch):
-    main, _, TestingSessionLocal = app_and_db
+    main, _, _ = app_and_db
 
     async def fake_fetch(_pid: int) -> float:
         return 10.0
 
     monkeypatch.setattr(main, "fetch_product_price", fake_fetch)
 
-    real_begin = TestingSessionLocal.begin
-
     def boom_begin(self, *args, **kwargs):
         raise SQLAlchemyError("db boom")
 
-    monkeypatch.setattr(TestingSessionLocal, "begin", boom_begin, raising=True)
+    # Patch the actual Session.begin method
+    monkeypatch.setattr(Session, "begin", boom_begin, raising=True)
 
     r = client.post("/orders", json={"items": [{"product_id": 1, "qty": 1}]})
+
     assert r.status_code == 500
     assert r.json()["detail"] == "Failed to create order"
-
-    monkeypatch.setattr(TestingSessionLocal, "begin", real_begin, raising=True)
 
 
 def test_get_order_owner_only(client, app_and_db):
