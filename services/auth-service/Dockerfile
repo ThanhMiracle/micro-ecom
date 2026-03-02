@@ -51,13 +51,12 @@ RUN set -eux; \
     pip install --no-index --find-links=/wheels-dev -r ./requirements.txt; \
     rm -rf /wheels-dev
 
-# copy code + tests
-# IMPORTANT: tests import "auth_service.*" so the folder must be "auth_service"
+# Copy service code as a proper package: /app/auth_service
 COPY auth-service/app ./auth_service
 COPY auth-service/tests ./tests
 COPY shared ./shared
 
-# Optional but recommended: ensure it's a package (safe even if already exists)
+# Ensure package marker exists
 RUN test -f /app/auth_service/__init__.py || touch /app/auth_service/__init__.py
 
 CMD ["pytest", "-q"]
@@ -84,9 +83,12 @@ RUN set -eux; \
     pip install --no-index --find-links=/wheels -r ./requirements.txt; \
     rm -rf /wheels
 
-# runtime keeps "app" since you run uvicorn app.main:app
-COPY auth-service/app ./app
+# Copy runtime code the SAME way as tests: /app/auth_service
+COPY auth-service/app ./auth_service
 COPY shared ./shared
+
+# Ensure package marker exists
+RUN test -f /app/auth_service/__init__.py || touch /app/auth_service/__init__.py
 
 RUN chown -R appuser:appuser /app
 USER appuser
@@ -96,4 +98,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()" || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the real module path
+CMD ["uvicorn", "auth_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
