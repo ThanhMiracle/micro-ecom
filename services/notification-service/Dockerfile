@@ -53,7 +53,7 @@ RUN set -eux; \
     rm -rf /wheels-dev
 
 # copy code + tests
-COPY notification-service/app ./app
+COPY notification-service/app ./notification_service
 COPY notification-service/tests ./tests
 COPY shared ./shared
 

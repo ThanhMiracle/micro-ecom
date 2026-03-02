@@ -23,7 +23,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # 1b) Builder stage for dev/test wheels
 ############################
 FROM builder AS builder-dev
+
 COPY auth-service/requirements.txt ./requirements.txt
+
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -eux; \
     pip wheel --wheel-dir /wheels-dev --prefer-binary -r ./requirements.txt
@@ -50,11 +52,14 @@ RUN set -eux; \
     rm -rf /wheels-dev
 
 # copy code + tests
-COPY auth-service/app ./app
+# IMPORTANT: tests import "auth_service.*" so the folder must be "auth_service"
+COPY auth-service/app ./auth_service
 COPY auth-service/tests ./tests
 COPY shared ./shared
 
-# run tests by default in this stage
+# Optional but recommended: ensure it's a package (safe even if already exists)
+RUN test -f /app/auth_service/__init__.py || touch /app/auth_service/__init__.py
+
 CMD ["pytest", "-q"]
 
 
@@ -79,6 +84,7 @@ RUN set -eux; \
     pip install --no-index --find-links=/wheels -r ./requirements.txt; \
     rm -rf /wheels
 
+# runtime keeps "app" since you run uvicorn app.main:app
 COPY auth-service/app ./app
 COPY shared ./shared
 

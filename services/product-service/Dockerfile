@@ -55,7 +55,7 @@ RUN set -eux; \
     pip install --no-index --find-links=/wheels-dev -r ./requirements.txt; \
     rm -rf /wheels-dev
 
-COPY product-service/app ./app
+COPY product-service/app ./product-service
 COPY product-service/tests ./tests
 COPY shared ./shared
 
