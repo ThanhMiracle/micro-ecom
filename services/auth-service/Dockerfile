@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.6
 
 ############################
-# 1) Builder Stage (no apt)
+# 1) Builder Stage (wheels)
 ############################
 FROM python:3.11-slim AS builder
 
@@ -13,7 +13,6 @@ WORKDIR /build
 
 COPY auth-service/requirements.txt ./requirements.txt
 
-# Build wheels from binaries when available (avoids needing gcc)
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -eux; \
     pip install --upgrade pip setuptools wheel; \
@@ -21,7 +20,46 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 
 ############################
-# 2) Runtime Stage
+# 1b) Builder stage for dev/test wheels
+############################
+FROM builder AS builder-dev
+COPY auth-service/requirements-dev.txt ./requirements-dev.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    set -eux; \
+    pip wheel --wheel-dir /wheels-dev --prefer-binary -r ./requirements-dev.txt
+
+
+############################
+# 2) Test Stage
+############################
+FROM python:3.11-slim AS test
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app
+
+WORKDIR /app
+
+COPY --from=builder-dev /wheels-dev /wheels-dev
+COPY auth-service/requirements-dev.txt ./requirements-dev.txt
+
+RUN set -eux; \
+    pip install --no-index --find-links=/wheels-dev -r ./requirements-dev.txt; \
+    rm -rf /wheels-dev
+
+# copy code + tests
+COPY auth-service/app ./app
+COPY auth-service/tests ./tests
+COPY shared ./shared
+
+# run tests by default in this stage
+CMD ["pytest", "-q"]
+
+
+############################
+# 3) Runtime Stage
 ############################
 FROM python:3.11-slim AS runtime
 
@@ -32,7 +70,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app
 
 WORKDIR /app
-
 RUN useradd -m -u 10001 appuser
 
 COPY --from=builder /wheels /wheels

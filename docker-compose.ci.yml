@@ -1,0 +1,130 @@
+services:
+  # CI safety: don't force a fixed name (lets -p microshop-ci-XXX isolate builds)
+  postgres:
+    container_name: ""
+
+  # (Optional) build runtime images from repo
+  auth:
+    build:
+      context: ./services
+      dockerfile: auth-service/Dockerfile
+      target: runtime
+
+  product:
+    build:
+      context: ./services
+      dockerfile: product-service/Dockerfile
+      target: runtime
+
+  order:
+    build:
+      context: ./services
+      dockerfile: order-service/Dockerfile
+      target: runtime
+
+  payment:
+    build:
+      context: ./services
+      dockerfile: payment-service/Dockerfile
+      target: runtime
+
+  notify:
+    build:
+      context: ./services
+      dockerfile: notification-service/Dockerfile
+      target: runtime
+
+  # Test runners
+  auth-tests:
+    build:
+      context: ./services
+      dockerfile: auth-service/Dockerfile
+      target: test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbit:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
+      DB_SCHEMA: auth
+      JWT_SECRET: change-me
+      RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
+    command: ["pytest", "-q"]
+    networks: [shop-net]
+
+  product-tests:
+    build:
+      context: ./services
+      dockerfile: product-service/Dockerfile
+      target: test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
+      DB_SCHEMA: product
+      JWT_SECRET: change-me
+    command: ["pytest", "-q"]
+    networks: [shop-net]
+
+  order-tests:
+    build:
+      context: ./services
+      dockerfile: order-service/Dockerfile
+      target: test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbit:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
+      DB_SCHEMA: orders
+      JWT_SECRET: change-me
+      RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
+      PRODUCT_URL_INTERNAL: http://product:8000
+    command: ["pytest", "-q"]
+    networks: [shop-net]
+
+  payment-tests:
+    build:
+      context: ./services
+      dockerfile: payment-service/Dockerfile
+      target: test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbit:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
+      DB_SCHEMA: payment
+      JWT_SECRET: change-me
+      RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
+      ORDER_URL_INTERNAL: http://order:8000
+      PRODUCT_URL_INTERNAL: http://product:8000
+    command: ["pytest", "-q"]
+    networks: [shop-net]
+
+  notify-tests:
+    build:
+      context: ./services
+      dockerfile: notification-service/Dockerfile
+      target: test
+    depends_on:
+      rabbit:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_USE_TLS: "false"
+      SMTP_USE_AUTH: "false"
+      SMTP_USER: test
+      SMTP_PASS: test
+      FROM_EMAIL: MicroShop <test@local>
+    command: ["pytest", "-q"]
+    networks: [shop-net]

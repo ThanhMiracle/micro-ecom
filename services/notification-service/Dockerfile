@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.6
 
 ############################
-# 1) Builder Stage (no apt)
+# 1) Builder Stage (wheels)
 ############################
 FROM python:3.11-slim AS builder
 
@@ -20,7 +20,48 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 
 ############################
-# 2) Runtime Stage
+# 1b) Builder stage for dev/test wheels
+############################
+FROM builder AS builder-dev
+COPY notification-service/requirements-dev.txt ./requirements-dev.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    set -eux; \
+    pip wheel --wheel-dir /wheels-dev --prefer-binary -r ./requirements-dev.txt
+
+
+############################
+# 2) Test Stage
+############################
+FROM python:3.11-slim AS test
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app
+
+WORKDIR /app
+
+# notification-service imports RABBITMQ_URL at import time, so set a safe default for tests
+ENV RABBITMQ_URL=amqp://guest:guest@localhost:5672/
+
+COPY --from=builder-dev /wheels-dev /wheels-dev
+COPY notification-service/requirements-dev.txt ./requirements-dev.txt
+
+RUN set -eux; \
+    pip install --no-index --find-links=/wheels-dev -r ./requirements-dev.txt; \
+    rm -rf /wheels-dev
+
+# copy code + tests
+COPY notification-service/app ./app
+COPY notification-service/tests ./tests
+COPY shared ./shared
+
+CMD ["pytest", "-q"]
+
+
+############################
+# 3) Runtime Stage
 ############################
 FROM python:3.11-slim AS runtime
 

@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1.6
 
+############################
+# 1) Builder: wheels for runtime deps
+############################
 FROM python:3.11-slim AS builder
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -15,6 +18,53 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip wheel --wheel-dir /wheels --prefer-binary -r ./requirements.txt
 
 
+############################
+# 1b) Builder-dev: wheels for test deps
+############################
+FROM builder AS builder-dev
+
+COPY product-service/requirements-dev.txt ./requirements-dev.txt
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    set -eux; \
+    pip wheel --wheel-dir /wheels-dev --prefer-binary -r ./requirements-dev.txt
+
+
+############################
+# 2) Test stage (LOCAL mode)
+############################
+FROM python:3.11-slim AS test
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app
+
+WORKDIR /app
+
+# ✅ product-service enforces UPLOAD_DIR at import time in local mode
+ENV STORAGE_BACKEND=local
+ENV UPLOAD_DIR=/tmp/uploads
+# optional, but keeps CORS config deterministic
+ENV FRONTEND_ORIGINS=http://localhost:3000
+
+COPY --from=builder-dev /wheels-dev /wheels-dev
+COPY product-service/requirements-dev.txt ./requirements-dev.txt
+
+RUN set -eux; \
+    pip install --no-index --find-links=/wheels-dev -r ./requirements-dev.txt; \
+    rm -rf /wheels-dev
+
+COPY product-service/app ./app
+COPY product-service/tests ./tests
+COPY shared ./shared
+
+CMD ["pytest", "-q"]
+
+
+############################
+# 3) Runtime stage
+############################
 FROM python:3.11-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

@@ -20,7 +20,49 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 
 ############################
-# 2) Runtime: minimal
+# 1b) Builder-dev: wheels for dev/test deps
+############################
+FROM builder AS builder-dev
+
+COPY order-service/requirements-dev.txt ./requirements-dev.txt
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    set -eux; \
+    pip wheel --wheel-dir /wheels-dev --prefer-binary -r ./requirements-dev.txt
+
+
+############################
+# 2) Test stage
+############################
+FROM python:3.11-slim AS test
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app
+
+WORKDIR /app
+
+# Needed by your code path (safe defaults for tests)
+ENV PRODUCT_URL_INTERNAL=http://product-service:8000
+
+COPY --from=builder-dev /wheels-dev /wheels-dev
+COPY order-service/requirements-dev.txt ./requirements-dev.txt
+
+RUN set -eux; \
+    pip install --no-index --find-links=/wheels-dev -r ./requirements-dev.txt; \
+    rm -rf /wheels-dev
+
+COPY order-service/app ./app
+COPY order-service/tests ./tests
+COPY shared ./shared
+
+CMD ["pytest", "-q"]
+
+
+############################
+# 3) Runtime: minimal
 ############################
 FROM python:3.11-slim AS runtime
 

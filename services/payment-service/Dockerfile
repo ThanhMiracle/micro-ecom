@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.6
 
 ############################
-# Builder: build wheels (no apt)
+# 1) Builder: build wheels (no apt)
 ############################
 FROM python:3.11-slim AS builder
 
@@ -20,14 +20,57 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 
 ############################
-# Runtime: minimal
+# 1b) Builder-dev: wheels for test deps
+############################
+FROM builder AS builder-dev
+
+COPY payment-service/requirements-dev.txt ./requirements-dev.txt
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    set -eux; \
+    pip wheel --wheel-dir /wheels-dev --prefer-binary -r ./requirements-dev.txt
+
+
+############################
+# 2) Test stage
+############################
+FROM python:3.11-slim AS test
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app
+
+WORKDIR /app
+
+# safe defaults so imports/tests don't rely on external services
+ENV ORDER_URL_INTERNAL=http://order:8000
+
+COPY --from=builder-dev /wheels-dev /wheels-dev
+COPY payment-service/requirements-dev.txt ./requirements-dev.txt
+
+RUN set -eux; \
+    pip install --no-index --find-links=/wheels-dev -r ./requirements-dev.txt; \
+    rm -rf /wheels-dev
+
+COPY payment-service/app ./app
+COPY payment-service/tests ./tests
+COPY shared ./shared
+
+CMD ["pytest", "-q"]
+
+
+############################
+# 3) Runtime: minimal
 ############################
 FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app
 
 WORKDIR /app
 
@@ -47,5 +90,8 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()" || exit 1
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -103,7 +103,7 @@ services:
     # build:
     #   context: ./services
     #   dockerfile: notification-service/Dockerfile
-    # 🔥 Start the RabbitMQ consumer/worker (sends emails via Mailhog)
+    #🔥 Start the RabbitMQ consumer/worker (sends emails via Mailhog)
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbit:5672/

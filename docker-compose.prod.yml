@@ -1,13 +1,17 @@
 services:
   postgres:
     image: ${POSTGRES_IMAGE}
-    container_name: ${POSTGRES_CONTAINER_NAME}
+    # container_name removed for CI safety
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "${POSTGRES_PORT}:5432"
+    # Avoid host port collisions in CI; use internal networking
+    expose:
+      - "5432"
+    # If you really need host access in some CI jobs, uncomment:
+    # ports:
+    #   - "${POSTGRES_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,12 +21,16 @@ services:
       retries: 20
     networks:
       - shop-net
+    restart: "no"
 
   rabbit:
     image: ${RABBIT_IMAGE}
-    ports:
-      - "${RABBIT_PORT}:5672"
-      - "${RABBIT_MGMT_PORT}:15672"
+    expose:
+      - "5672"
+      - "15672"
+    # ports:
+    #   - "${RABBIT_PORT}:5672"
+    #   - "${RABBIT_MGMT_PORT}:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
@@ -30,9 +38,11 @@ services:
       retries: 20
     networks:
       - shop-net
+    restart: "no"
 
   auth:
     image: ${AUTH_IMAGE}
+    init: true
     environment:
       DATABASE_URL: ${AUTH_DATABASE_URL}
       DB_SCHEMA: ${AUTH_DB_SCHEMA}
@@ -46,13 +56,23 @@ services:
         condition: service_healthy
       rabbit:
         condition: service_healthy
-    ports:
-      - "${AUTH_PORT}:8000"
+    expose:
+      - "8000"
+    # ports:
+    #   - "${AUTH_PORT}:8000"
     networks:
       - shop-net
+    restart: "no"
+    # Optional: only if your service has /health
+    # healthcheck:
+    #   test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
+    #   interval: 10s
+    #   timeout: 3s
+    #   retries: 20
 
   product:
     image: ${PRODUCT_IMAGE}
+    init: true
     environment:
       DATABASE_URL: ${PRODUCT_DATABASE_URL}
       DB_SCHEMA: ${PRODUCT_DB_SCHEMA}
@@ -61,15 +81,25 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "${PRODUCT_PORT}:8000"
+    expose:
+      - "8000"
+    # ports:
+    #   - "${PRODUCT_PORT}:8000"
     networks:
       - shop-net
     volumes:
       - product_uploads:${UPLOAD_DIR}
+    restart: "no"
+    # Optional healthcheck if exists
+    # healthcheck:
+    #   test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
+    #   interval: 10s
+    #   timeout: 3s
+    #   retries: 20
 
   order:
     image: ${ORDER_IMAGE}
+    init: true
     environment:
       DATABASE_URL: ${ORDER_DATABASE_URL}
       DB_SCHEMA: ${ORDER_DB_SCHEMA}
@@ -81,13 +111,17 @@ services:
         condition: service_healthy
       rabbit:
         condition: service_healthy
-    ports:
-      - "${ORDER_PORT}:8000"
+    expose:
+      - "8000"
+    # ports:
+    #   - "${ORDER_PORT}:8000"
     networks:
       - shop-net
+    restart: "no"
 
   notify:
     image: ${NOTIFY_IMAGE}
+    init: true
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       RABBITMQ_URL: ${RABBITMQ_URL}
@@ -101,36 +135,51 @@ services:
     depends_on:
       rabbit:
         condition: service_healthy
+    expose:
+      - "8000"
     networks:
       - shop-net
+    restart: "no"
 
   web:
     image: ${WEB_IMAGE}
+    profiles: ["ui"]   # CI can skip UI by default
     environment:
       VITE_AUTH_URL: ${VITE_AUTH_URL}
       VITE_PRODUCT_URL: ${VITE_PRODUCT_URL}
       VITE_ORDER_URL: ${VITE_ORDER_URL}
-    ports:
-      - "${WEB_PORT}:80"
+    expose:
+      - "80"
+    # ports:
+    #   - "${WEB_PORT}:80"
     depends_on:
       - auth
       - product
       - order
     networks:
       - shop-net
+    restart: "no"
 
   mailhog:
     image: ${MAILHOG_IMAGE}
-    ports:
-      - "${MAILHOG_SMTP_PORT}:1025"
-      - "${MAILHOG_UI_PORT}:8025"
+    profiles: ["ui"]   # usually not needed for CI unless notify tests need it
+    expose:
+      - "1025"
+      - "8025"
+    # ports:
+    #   - "${MAILHOG_SMTP_PORT}:1025"
+    #   - "${MAILHOG_UI_PORT}:8025"
     networks:
       - shop-net
+    restart: "no"
 
   gateway:
     image: ${GATEWAY_IMAGE}
-    ports:
-      - "${GATEWAY_PORT}:80"
+    profiles: ["ui"]   # skip by default in CI
+    expose:
+      - "80"
+    # ports:
+    #   - "${GATEWAY_PORT}:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
@@ -140,6 +189,7 @@ services:
       - order
     networks:
       - shop-net
+    restart: "no"
 
 volumes:
   postgres_data:
