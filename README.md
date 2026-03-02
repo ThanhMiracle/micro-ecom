@@ -306,3 +306,16 @@ cat /etc/docker/daemon.json 2>/dev/null || echo "no daemon.json"
 ```
 
 Most likely fix is **Docker DNS** + restart.
+
+
+
+
+docker run -d \
+  --name jenkins-blueocean \
+  --restart unless-stopped \
+  --user root \
+  --dns 10.16.32.53 --dns 10.133.93.53 --dns 10.98.112.53 \
+  -p 8080:8080 -p 50000:50000 \
+  -v jenkins-data:/var/jenkins_home \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  myjenkins-blueocean:2.541.2-1
