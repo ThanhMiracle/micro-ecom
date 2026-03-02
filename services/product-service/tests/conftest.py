@@ -1,8 +1,8 @@
-import importlib
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 
 @pytest.fixture(scope="session")
@@ -10,6 +10,7 @@ def test_engine():
     return create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
+        poolclass=StaticPool,  # IMPORTANT for sqlite :memory:
         future=True,
     )
 
@@ -31,9 +32,6 @@ def local_app_and_db(monkeypatch, tmp_path, test_engine):
     import product_service.main as main
     import product_service.db as dbmod
 
-    importlib.reload(dbmod)
-    importlib.reload(main)
-
     TestingSessionLocal = sessionmaker(
         autocommit=False,
         autoflush=False,
@@ -44,6 +42,7 @@ def local_app_and_db(monkeypatch, tmp_path, test_engine):
     monkeypatch.setattr(dbmod, "engine", test_engine, raising=True)
     monkeypatch.setattr(dbmod, "SessionLocal", TestingSessionLocal, raising=True)
 
+    # Create tables for tests
     dbmod.Base.metadata.create_all(bind=test_engine)
 
     def override_get_db():

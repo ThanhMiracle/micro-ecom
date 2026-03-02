@@ -1,10 +1,9 @@
-import os
-import importlib
+# tests/conftest.py
 import pytest
-
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 
 @pytest.fixture(scope="session")
@@ -14,10 +13,11 @@ def jwt_secret():
 
 @pytest.fixture(scope="session")
 def test_engine():
-    # In-memory sqlite shared across connections for the lifetime of the engine
+    # In-memory sqlite shared across ALL connections for lifetime of engine
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
+        poolclass=StaticPool,  # IMPORTANT for sqlite :memory: stability
         future=True,
     )
     return engine
@@ -26,14 +26,17 @@ def test_engine():
 @pytest.fixture()
 def app_and_db(monkeypatch, jwt_secret, test_engine):
     """
-    Imports auth_service.main AFTER setting env var JWT_SECRET
-    because main.py reads JWT_SECRET at import time.
+    Import auth_service.main AFTER setting env vars because main.py reads them at import time.
     """
+
+    # Set env expected by the app
     monkeypatch.setenv("JWT_SECRET", jwt_secret)
+    monkeypatch.setenv("FRONTEND_BASE_URL", "http://localhost:3000")
+
+    # Make sure these won't trigger behavior in startup/tests unless you want them
     monkeypatch.delenv("RABBITMQ_URL", raising=False)
     monkeypatch.delenv("ADMIN_EMAIL", raising=False)
     monkeypatch.delenv("ADMIN_PASSWORD", raising=False)
-    monkeypatch.setenv("FRONTEND_BASE_URL", "http://localhost:3000")
 
     # Import after env setup
     import auth_service.main as main
@@ -50,7 +53,7 @@ def app_and_db(monkeypatch, jwt_secret, test_engine):
     monkeypatch.setattr(dbmod, "engine", test_engine, raising=True)
     monkeypatch.setattr(dbmod, "SessionLocal", TestingSessionLocal, raising=True)
 
-    # Create tables using the service Base
+    # Recreate tables in the in-memory DB
     dbmod.Base.metadata.create_all(bind=test_engine)
 
     # Override FastAPI dependency get_db
@@ -63,7 +66,6 @@ def app_and_db(monkeypatch, jwt_secret, test_engine):
 
     main.app.dependency_overrides[main.get_db] = override_get_db
 
-    # Give back module refs so tests can monkeypatch functions inside main
     return main, dbmod, TestingSessionLocal
 
 

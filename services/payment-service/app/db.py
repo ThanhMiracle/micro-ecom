@@ -2,27 +2,51 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+# In prod: set DATABASE_URL to Postgres.
+# In tests: if DATABASE_URL isn't set, use sqlite memory.
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 DB_SCHEMA = os.getenv("DB_SCHEMA", "payment")
 
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL not set")
+engine = create_engine(
+    DATABASE_URL,
+    future=True,
+    pool_pre_ping=True,
+)
 
-# Engine
-engine = create_engine(DATABASE_URL, future=True)
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False,
+    future=True,
+)
 
-# Session
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
-
-# Base model
 Base = declarative_base()
 
 
-def init_schema():
+def _is_sqlite() -> bool:
+    return engine.dialect.name == "sqlite"
+
+
+def init_schema() -> None:
     """
-    Create schema if it doesn't exist.
-    Each microservice owns its own schema.
+    Postgres: create schema + set search_path (each service owns its schema).
+    SQLite: no schemas/search_path -> no-op (unit tests).
     """
+    if _is_sqlite():
+        return
+
     with engine.begin() as conn:
         conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {DB_SCHEMA}"))
+        conn.execute(text(f"SET search_path TO {DB_SCHEMA}"))
+
+
+def set_search_path() -> None:
+    """
+    Useful if you want to call it per-connection in some flows.
+    SQLite: no-op.
+    """
+    if _is_sqlite():
+        return
+
+    with engine.begin() as conn:
         conn.execute(text(f"SET search_path TO {DB_SCHEMA}"))

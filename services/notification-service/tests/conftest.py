@@ -1,4 +1,3 @@
-import importlib
 import pytest
 from fastapi.testclient import TestClient
 
@@ -6,16 +5,13 @@ from fastapi.testclient import TestClient
 @pytest.fixture()
 def svc(monkeypatch):
     """
-    Import notification-service AFTER setting RABBITMQ_URL because module
-    reads it at import time.
+    Import notification-service AFTER setting env vars because module
+    reads them at import time.
     """
     monkeypatch.setenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 
-    # Adjust this import path to your real package name.
-    # Example if your file is: notification_service/main.py
     import notification_service.main as main
-    importlib.reload(main)
-
+    main = importlib.reload(main)   
     return main
 
 
@@ -23,3 +19,4 @@ def svc(monkeypatch):
 def client(svc):
     with TestClient(svc.app) as c:
         yield c
+    svc.app.dependency_overrides = {}
