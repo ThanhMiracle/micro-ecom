@@ -9,7 +9,6 @@ pipeline {
   environment {
     DOCKER_BUILDKIT = "1"
     COMPOSE_DOCKER_CLI_BUILD = "1"
-    // Ensure it's available in ALL stages + post
     COMPOSE_PROJECT_NAME = "microshop-ci-${env.BUILD_NUMBER}"
   }
 
@@ -23,7 +22,7 @@ pipeline {
 
     stage('Preflight') {
       steps {
-        sh '''
+        sh(label: 'preflight', shell: '/bin/bash', script: '''#!/usr/bin/env bash
           set -euo pipefail
           echo "================ PRE-FLIGHT ================"
           echo "Node: $(hostname)"
@@ -49,13 +48,13 @@ pipeline {
 
           echo "== DNS sanity (host) =="
           getent hosts api.github.com || true
-        '''
+        ''')
       }
     }
 
     stage('Build') {
       steps {
-        sh '''
+        sh(label: 'build', shell: '/bin/bash', script: '''#!/usr/bin/env bash
           set -euxo pipefail
           echo "================ BUILD ================"
 
@@ -75,13 +74,13 @@ pipeline {
 
           echo "== Building images =="
           $C build --pull
-        '''
+        ''')
       }
     }
 
     stage('Test') {
       steps {
-        sh '''
+        sh(label: 'test', shell: '/bin/bash', script: '''#!/usr/bin/env bash
           set -euxo pipefail
           echo "================ TEST ================"
 
@@ -107,10 +106,8 @@ pipeline {
             echo
             echo "---------- RUN TEST: ${svc} ----------"
 
-            # Capture output into a file as well (useful in Jenkins console + artifacts)
             mkdir -p ci-artifacts
 
-            # Run test and capture exit code without losing logs
             set +e
             $C run --rm "${svc}" 2>&1 | tee "ci-artifacts/${svc}.out.log"
             rc=${PIPESTATUS[0]}
@@ -127,8 +124,6 @@ pipeline {
               echo "== Compose logs tail (on failure) =="
               $C logs --no-color --tail=300 || true
 
-              # If the test container still exists briefly, try to show its logs explicitly
-              # (Sometimes it is removed fast due to --rm)
               cid=$($C ps -aq "${svc}" 2>/dev/null | head -n 1 || true)
               if [ -n "$cid" ]; then
                 echo "== Docker logs for container $cid =="
@@ -144,14 +139,14 @@ pipeline {
           run_test order-tests
           run_test payment-tests
           run_test notify-tests
-        '''
+        ''')
       }
     }
   }
 
   post {
     always {
-      sh '''
+      sh(label: 'post', shell: '/bin/bash', script: '''#!/usr/bin/env bash
         set +e
         echo "================ POST / ALWAYS ================"
 
@@ -176,7 +171,7 @@ pipeline {
 
         echo "== Cleaning up =="
         $C down -v --remove-orphans || true
-      '''
+      ''')
 
       archiveArtifacts artifacts: 'ci-artifacts/*', allowEmptyArchive: true
       cleanWs()
