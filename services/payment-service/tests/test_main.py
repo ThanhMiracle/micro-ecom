@@ -2,6 +2,8 @@ import httpx
 import pytest
 from fastapi import HTTPException
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+
 
 
 # -----------------------
@@ -246,18 +248,18 @@ def test_pay_order_not_created_400(client, app_and_db, monkeypatch):
 
 
 def test_pay_db_failure_500(client, app_and_db, monkeypatch):
-    main, _, TestingSessionLocal = app_and_db
+    main, _, _ = app_and_db
 
     async def fake_fetch(order_id, token):
         return {"id": order_id, "status": "CREATED", "total": 10.0}
 
     monkeypatch.setattr(main, "fetch_order", fake_fetch)
 
-    # Force commit to raise
-    def boom_commit(self):
+    # Force commit to raise on the actual DB session instance
+    def boom_commit(self, *args, **kwargs):
         raise SQLAlchemyError("db boom")
 
-    monkeypatch.setattr(TestingSessionLocal, "commit", boom_commit, raising=True)
+    monkeypatch.setattr(Session, "commit", boom_commit, raising=True)
 
     r = client.post("/payments/201", json={"shipping_address": "A", "phone_number": "1"})
     assert r.status_code == 500
