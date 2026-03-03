@@ -1,17 +1,13 @@
+import importlib
 import pytest
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture()
 def svc(monkeypatch):
-    """
-    Import notification-service AFTER setting env vars because module
-    reads them at import time.
-    """
     monkeypatch.setenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-
     import notification_service.main as main
-    main = importlib.reload(main)   
+    main = importlib.reload(main)
     return main
 
 
