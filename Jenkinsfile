@@ -10,6 +10,16 @@ pipeline {
     DOCKER_BUILDKIT = "1"
     COMPOSE_DOCKER_CLI_BUILD = "1"
     COMPOSE_PROJECT_NAME = "microshop-ci-${env.BUILD_NUMBER}"
+
+    // ====== Registry settings (EDIT THESE) ======
+    // Example: docker.io, ghcr.io, registry.gitlab.com
+    REGISTRY = "docker.io"
+    // Example: your Docker Hub username / org, or GHCR org
+    IMAGE_NAMESPACE = "thanh2909"
+
+    // Jenkins credentials id that stores registry username+password
+    // Create in Jenkins: Credentials -> Username with password
+    DOCKER_CREDS_ID = "docker-registry-creds"
   }
 
   stages {
@@ -25,6 +35,7 @@ pipeline {
         sh '''#!/usr/bin/env bash
           set -euo pipefail
           echo "================ PRE-FLIGHT ================"
+          echo "Branch: ${BRANCH_NAME}"
           echo "Node: $(hostname)"
           echo "User: $(id)"
           echo "Workspace: $PWD"
@@ -74,15 +85,20 @@ pipeline {
 
           echo "== Building images =="
           $C build --pull
+
+          echo "== Built images =="
+          $C images || true
         '''
       }
     }
 
-    stage('Test') {
+    // ===== DEV: run tests only on dev branch =====
+    stage('Test (dev only)') {
+      when { branch 'dev' }
       steps {
         sh '''#!/usr/bin/env bash
           set -euxo pipefail
-          echo "================ TEST ================"
+          echo "================ TEST (DEV) ================"
 
           if docker compose version >/dev/null 2>&1; then
             COMPOSE="docker compose"
@@ -124,12 +140,6 @@ pipeline {
               echo "== Compose logs tail (on failure) =="
               $C logs --no-color --tail=300 || true
 
-              cid=$($C ps -aq "${svc}" 2>/dev/null | head -n 1 || true)
-              if [ -n "$cid" ]; then
-                echo "== Docker logs for container $cid =="
-                docker logs --tail 300 "$cid" || true
-              fi
-
               exit "${rc}"
             fi
           }
@@ -139,6 +149,80 @@ pipeline {
           run_test order-tests
           run_test payment-tests
           run_test notify-tests
+        '''
+      }
+    }
+
+    // ===== MAIN: push images only on main branch =====
+    stage('Push Images (main only)') {
+      when { branch 'main' }
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
+          sh '''#!/usr/bin/env bash
+            set -euxo pipefail
+            echo "================ PUSH (MAIN / DOCKER HUB) ================"
+
+            if docker compose version >/dev/null 2>&1; then
+              COMPOSE="docker compose"
+            else
+              COMPOSE="docker-compose"
+            fi
+
+            C="$COMPOSE -p ${COMPOSE_PROJECT_NAME} -f docker-compose.yml -f docker-compose.ci.yml"
+
+            mkdir -p ci-artifacts
+
+            GIT_SHA="$(git rev-parse --short=12 HEAD)"
+            echo "GIT_SHA=$GIT_SHA" | tee ci-artifacts/git-sha.txt
+
+            echo "== Docker Hub login =="
+            echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin
+
+            echo "== Images from compose =="
+            $C config --images | sort -u | tee ci-artifacts/compose-images.txt
+
+            while read -r img; do
+              [ -z "$img" ] && continue
+
+              base="${img%:*}"
+              tag="${img##*:}"
+              if [ "$base" = "$img" ]; then
+                base="$img"
+                tag="latest"
+              fi
+
+              # Keep only repo name (last path segment) and push under your Docker Hub namespace
+              repo="$(echo "$base" | awk -F/ '{print $NF}')"
+              dest_base="${DOCKERHUB_USER}/${repo}"
+
+              dest_sha="${dest_base}:${GIT_SHA}"
+              dest_main_latest="${dest_base}:main-latest"
+
+              echo "== Tagging $img -> $dest_sha and $dest_main_latest =="
+              docker tag "$img" "$dest_sha"
+              docker tag "$img" "$dest_main_latest"
+
+              echo "== Pushing $dest_sha =="
+              docker push "$dest_sha"
+
+              echo "== Pushing $dest_main_latest =="
+              docker push "$dest_main_latest"
+            done < <($C config --images | sort -u)
+
+            docker logout || true
+          '''
+        }
+      }
+    }
+
+    // ===== Later you add deploy stage on main (kept as placeholder) =====
+    stage('Deploy (main only) - later') {
+      when { branch 'main' }
+      steps {
+        sh '''#!/usr/bin/env bash
+          set -euo pipefail
+          echo "================ DEPLOY (MAIN) ================"
+          echo "Deploy will be added later."
         '''
       }
     }
