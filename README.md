@@ -319,3 +319,9 @@ docker run -d \
   -v jenkins-data:/var/jenkins_home \
   -v /var/run/docker.sock:/var/run/docker.sock \
   myjenkins-blueocean:2.541.2-2
+
+
+  docker compose -p microshop-ci-36 \
+  -f docker-compose.yml \
+  -f docker-compose.ci.yml \
+  build --progress=plain
