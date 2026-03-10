@@ -1,185 +1,84 @@
 services:
-  postgres:
-    image: ${POSTGRES_IMAGE}
-    # container_name removed for CI safety
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    # Avoid host port collisions in CI; use internal networking
-    expose:
-      - "5432"
-    # If you really need host access in some CI jobs, uncomment:
-    # ports:
-    #   - "${POSTGRES_PORT}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    networks:
-      - shop-net
-    restart: "no"
-
-  rabbit:
-    image: ${RABBIT_IMAGE}
-    expose:
-      - "5672"
-      - "15672"
-    # ports:
-    #   - "${RABBIT_PORT}:5672"
-    #   - "${RABBIT_MGMT_PORT}:15672"
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    networks:
-      - shop-net
-    restart: "no"
-
   auth:
     image: ${AUTH_IMAGE}
     init: true
     environment:
       DATABASE_URL: ${AUTH_DATABASE_URL}
-      DB_SCHEMA: ${AUTH_DB_SCHEMA}
       JWT_SECRET: ${JWT_SECRET}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL}
       RABBITMQ_URL: ${RABBITMQ_URL}
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbit:
-        condition: service_healthy
+      AWS_REGION: ${AWS_REGION}
     expose:
       - "8000"
-    # ports:
-    #   - "${AUTH_PORT}:8000"
     networks:
       - shop-net
-    restart: "no"
-    # Optional: only if your service has /health
-    # healthcheck:
-    #   test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
-    #   interval: 10s
-    #   timeout: 3s
-    #   retries: 20
+    restart: unless-stopped
 
   product:
     image: ${PRODUCT_IMAGE}
     init: true
     environment:
       DATABASE_URL: ${PRODUCT_DATABASE_URL}
-      DB_SCHEMA: ${PRODUCT_DB_SCHEMA}
       JWT_SECRET: ${JWT_SECRET}
-      UPLOAD_DIR: ${UPLOAD_DIR}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      AWS_REGION: ${AWS_REGION}
+      S3_BUCKET: ${S3_BUCKET}
+      IMAGES_CDN_URL: ${IMAGES_CDN_URL}
     expose:
       - "8000"
-    # ports:
-    #   - "${PRODUCT_PORT}:8000"
     networks:
       - shop-net
-    volumes:
-      - product_uploads:${UPLOAD_DIR}
-    restart: "no"
-    # Optional healthcheck if exists
-    # healthcheck:
-    #   test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
-    #   interval: 10s
-    #   timeout: 3s
-    #   retries: 20
+    restart: unless-stopped
 
   order:
     image: ${ORDER_IMAGE}
     init: true
     environment:
       DATABASE_URL: ${ORDER_DATABASE_URL}
-      DB_SCHEMA: ${ORDER_DB_SCHEMA}
       JWT_SECRET: ${JWT_SECRET}
       RABBITMQ_URL: ${RABBITMQ_URL}
-      PRODUCT_URL_INTERNAL: ${PRODUCT_URL_INTERNAL}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbit:
-        condition: service_healthy
+      PRODUCT_URL_INTERNAL: http://product:8000
+      AWS_REGION: ${AWS_REGION}
     expose:
       - "8000"
-    # ports:
-    #   - "${ORDER_PORT}:8000"
+    depends_on:
+      - product
     networks:
       - shop-net
-    restart: "no"
+    restart: unless-stopped
 
   notify:
     image: ${NOTIFY_IMAGE}
     init: true
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       RABBITMQ_URL: ${RABBITMQ_URL}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USE_TLS: ${SMTP_USE_TLS}
-      SMTP_USE_AUTH: ${SMTP_USE_AUTH}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASS: ${SMTP_PASS}
-      FROM_EMAIL: ${FROM_EMAIL}
-    depends_on:
-      rabbit:
-        condition: service_healthy
+      AWS_REGION: ${AWS_REGION}
+      SNS_TOPIC_ARN_NOTIFY: ${SNS_TOPIC_ARN_NOTIFY}
     expose:
       - "8000"
     networks:
       - shop-net
-    restart: "no"
+    restart: unless-stopped
 
   web:
     image: ${WEB_IMAGE}
-    profiles: ["ui"]   # CI can skip UI by default
     environment:
       VITE_AUTH_URL: ${VITE_AUTH_URL}
       VITE_PRODUCT_URL: ${VITE_PRODUCT_URL}
       VITE_ORDER_URL: ${VITE_ORDER_URL}
     expose:
       - "80"
-    # ports:
-    #   - "${WEB_PORT}:80"
     depends_on:
       - auth
       - product
       - order
     networks:
       - shop-net
-    restart: "no"
-
-  mailhog:
-    image: ${MAILHOG_IMAGE}
-    profiles: ["ui"]   # usually not needed for CI unless notify tests need it
-    expose:
-      - "1025"
-      - "8025"
-    # ports:
-    #   - "${MAILHOG_SMTP_PORT}:1025"
-    #   - "${MAILHOG_UI_PORT}:8025"
-    networks:
-      - shop-net
-    restart: "no"
+    restart: unless-stopped
 
   gateway:
     image: ${GATEWAY_IMAGE}
-    profiles: ["ui"]   # skip by default in CI
-    expose:
-      - "80"
-    # ports:
-    #   - "${GATEWAY_PORT}:80"
+    ports:
+      - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
@@ -189,11 +88,7 @@ services:
       - order
     networks:
       - shop-net
-    restart: "no"
-
-volumes:
-  postgres_data:
-  product_uploads:
+    restart: unless-stopped
 
 networks:
   shop-net:

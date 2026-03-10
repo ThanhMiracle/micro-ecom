@@ -25,6 +25,7 @@ def send_email(to_email: str, subject: str, html_body: str) -> None:
     msg["From"] = FROM_EMAIL
     msg["To"] = to_email
 
+
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
         # For Mailhog: no TLS, no auth
         if SMTP_USE_TLS:

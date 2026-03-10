@@ -90,7 +90,6 @@ services:
 
   notify:
     image: thanh2909/notify-service:v0.3
-    # command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
       SMTP_HOST: mailhog
