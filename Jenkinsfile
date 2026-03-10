@@ -15,4 +15,4 @@ microshopCi(
   deployBranch: 'main',
   infraServices: ['postgres', 'rabbit', 'mailhog'],
   testServices: ['auth-tests', 'product-tests', 'order-tests', 'payment-tests', 'notify-tests']
-),
+)
