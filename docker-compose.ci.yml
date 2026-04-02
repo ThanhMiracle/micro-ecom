@@ -1,10 +1,14 @@
 services:
-  # CI: no fixed container_name; no host ports; no persistent volume
   postgres:
     ports: []
     volumes: []
 
-  # (Optional) build runtime images from repo for CI
+  rabbit:
+    ports: []
+
+  mailhog:
+    ports: []
+
   auth:
     build:
       context: ./services
@@ -35,7 +39,6 @@ services:
       dockerfile: notification-service/Dockerfile
       target: runtime
 
-  # Test runners
   auth-tests:
     build:
       context: ./services
@@ -51,8 +54,11 @@ services:
       DB_SCHEMA: auth
       JWT_SECRET: change-me
       RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
-    command: ["pytest", "-q"]
-    networks: [shop-net]
+    command: ["sh", "-c", "mkdir -p /reports/auth && pytest -q --junitxml=/reports/auth/junit.xml"]
+    volumes:
+      - ./reports:/reports
+    networks:
+      - shop-net
 
   product-tests:
     build:
@@ -66,8 +72,11 @@ services:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: product
       JWT_SECRET: change-me
-    command: ["pytest", "-q"]
-    networks: [shop-net]
+    command: ["sh", "-c", "mkdir -p /reports/product && pytest -q --junitxml=/reports/product/junit.xml"]
+    volumes:
+      - ./reports:/reports
+    networks:
+      - shop-net
 
   order-tests:
     build:
@@ -79,14 +88,19 @@ services:
         condition: service_healthy
       rabbit:
         condition: service_healthy
+      product:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: orders
       JWT_SECRET: change-me
       RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
       PRODUCT_URL_INTERNAL: http://product:8000
-    command: ["pytest", "-q"]
-    networks: [shop-net]
+    command: ["sh", "-c", "mkdir -p /reports/order && pytest -q --junitxml=/reports/order/junit.xml"]
+    volumes:
+      - ./reports:/reports
+    networks:
+      - shop-net
 
   payment-tests:
     build:
@@ -98,6 +112,10 @@ services:
         condition: service_healthy
       rabbit:
         condition: service_healthy
+      product:
+        condition: service_started
+      order:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql+psycopg://microshop:microshop@postgres:5432/microshop
       DB_SCHEMA: payment
@@ -105,8 +123,11 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
       ORDER_URL_INTERNAL: http://order:8000
       PRODUCT_URL_INTERNAL: http://product:8000
-    command: ["pytest", "-q"]
-    networks: [shop-net]
+    command: ["sh", "-c", "mkdir -p /reports/payment && pytest -q --junitxml=/reports/payment/junit.xml"]
+    volumes:
+      - ./reports:/reports
+    networks:
+      - shop-net
 
   notify-tests:
     build:
@@ -127,5 +148,8 @@ services:
       SMTP_USER: test
       SMTP_PASS: test
       FROM_EMAIL: MicroShop <test@local>
-    command: ["pytest", "-q"]
-    networks: [shop-net]
+    command: ["sh", "-c", "mkdir -p /reports/notify && pytest -q --junitxml=/reports/notify/junit.xml"]
+    volumes:
+      - ./reports:/reports
+    networks:
+      - shop-net

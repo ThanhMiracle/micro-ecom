@@ -1,0 +1,9 @@
+@Library('jenkins-shared-library') _
+
+serviceBuildTest(
+    serviceName: 'auth',
+    runtimeService: 'auth',
+    testService: 'auth-tests',
+    startDeps: ['postgres', 'rabbit'],
+    reportGlob: 'reports/auth/junit.xml'
+)

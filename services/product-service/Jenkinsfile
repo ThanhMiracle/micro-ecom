@@ -1,0 +1,9 @@
+@Library('jenkins-shared-library') _
+
+serviceBuildTest(
+    serviceName: 'product',
+    runtimeService: 'product',
+    testService: 'product-tests',
+    startDeps: ['postgres'],
+    reportGlob: 'reports/product/junit.xml'
+)
