@@ -1,7 +1,4 @@
-folder('microshop') {
-    description('Microshop service CI pipelines')
-}
-def repoUrl = 'https://github.com/ThanhMiracle/micro-ecom'
+def repoUrl = 'https://github.com/ThanhMiracle/micro-ecom.git'
 def credsId = 'github-token'
 
 def services = [
@@ -13,7 +10,7 @@ def services = [
 ]
 
 services.each { svc ->
-    multibranchPipelineJob("microshop/${svc.name}") {
+    multibranchPipelineJob("${svc.name}") {
         description("Build and test ${svc.name} service across all branches")
 
         branchSources {
@@ -29,18 +26,6 @@ services.each { svc ->
         factory {
             workflowBranchProjectFactory {
                 scriptPath(svc.scriptPath)
-            }
-        }
-
-        orphanedItemStrategy {
-            discardOldItems {
-                numToKeep(20)
-            }
-        }
-
-        triggers {
-            periodicFolderTrigger {
-                interval('1h')
             }
         }
     }
