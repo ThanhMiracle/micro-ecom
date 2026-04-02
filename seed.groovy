@@ -2,7 +2,7 @@ folder('microshop') {
     description('Microshop service CI pipelines')
 }
 def repoUrl = 'https://github.com/ThanhMiracle/micro-ecom'
-def credsId = 'github-pat'
+def credsId = 'github-token'
 
 def services = [
     [name: 'auth',    scriptPath: 'services/auth-service/Jenkinsfile'],
