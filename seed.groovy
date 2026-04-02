@@ -10,21 +10,23 @@ def services = [
 ]
 
 services.each { svc ->
-    multibranchPipelineJob("${svc.name}") {
-        description("Build and test ${svc.name} service across all branches")
+    pipelineJob(svc.name) {
 
-        branchSources {
-            git {
-                id("microshop-${svc.name}")
-                remote(repoUrl)
-                credentialsId(credsId)
-                includes('*')
-                excludes('')
-            }
+        parameters {
+            stringParam('BRANCH', 'main', 'Git branch to build')
         }
 
-        factory {
-            workflowBranchProjectFactory {
+        definition {
+            cpsScm {
+                scm {
+                    git {
+                        remote {
+                            url(repoUrl)
+                            credentials(credsId)
+                        }
+                        branch("\${BRANCH}")
+                    }
+                }
                 scriptPath(svc.scriptPath)
             }
         }
