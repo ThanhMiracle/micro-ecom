@@ -6,4 +6,10 @@ serviceBuildTest(
     testService: 'product-tests',
     startDeps: ['postgres'],
     reportGlob: 'reports/product/junit.xml'
+    sonarEnabled: true,
+    trivyEnabled: true,
+    sonarProjectKey: 'micro-ecom-product',
+    sonarProjectName: 'micro-ecom-product',
+    sonarSources: 'src',
+    sonarExtraArgs: '-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info'
 )

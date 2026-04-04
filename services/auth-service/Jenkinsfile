@@ -6,4 +6,10 @@ serviceBuildTest(
     testService: 'auth-tests',
     startDeps: ['postgres', 'rabbit'],
     reportGlob: 'reports/auth/junit.xml'
+    sonarEnabled: true,
+    trivyEnabled: true,
+    sonarProjectKey: 'micro-ecom-auth',
+    sonarProjectName: 'micro-ecom-auth',
+    sonarSources: 'src',
+    sonarExtraArgs: '-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info'
 )

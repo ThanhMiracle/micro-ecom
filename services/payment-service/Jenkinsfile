@@ -5,5 +5,11 @@ serviceBuildTest(
     runtimeService: 'payment',
     testService: 'payment-tests',
     startDeps: ['postgres', 'rabbit', 'product', 'order'],
-    reportGlob: 'reports/payment/junit.xml'
+    reportGlob: 'reports/payment/junit.xml',
+    sonarEnabled: true,
+    trivyEnabled: true,
+    sonarProjectKey: 'micro-ecom-payment',
+    sonarProjectName: 'micro-ecom-payment',
+    sonarSources: 'src',
+    sonarExtraArgs: '-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info'
 )

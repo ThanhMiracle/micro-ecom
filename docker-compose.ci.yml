@@ -10,30 +10,35 @@ services:
     ports: []
 
   auth:
+    image: micro-ecom/auth:ci
     build:
       context: ./services
       dockerfile: auth-service/Dockerfile
       target: runtime
 
   product:
+    image: micro-ecom/product:ci
     build:
       context: ./services
       dockerfile: product-service/Dockerfile
       target: runtime
 
   order:
+    image: micro-ecom/order:ci
     build:
       context: ./services
       dockerfile: order-service/Dockerfile
       target: runtime
 
   payment:
+    image: micro-ecom/payment:ci
     build:
       context: ./services
       dockerfile: payment-service/Dockerfile
       target: runtime
 
   notify:
+    image: micro-ecom/notify:ci
     build:
       context: ./services
       dockerfile: notification-service/Dockerfile
