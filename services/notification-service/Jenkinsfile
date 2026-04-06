@@ -1,6 +1,6 @@
 @Library('jenkins-shared-library') _
 
-Pipeline(
+PipeLine(
     serviceName: 'notification',
     runtimeService: 'notification',
     testService: 'notification-tests',

@@ -1,6 +1,6 @@
 @Library('jenkins-shared-library') _
 
-Pipeline(
+PipeLine(
     serviceName: 'payment',
     runtimeService: 'payment',
     testService: 'payment-tests',

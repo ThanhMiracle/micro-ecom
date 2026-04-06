@@ -1,6 +1,6 @@
 @Library('jenkins-shared-library') _
 
-Pipeline(
+PipeLine(
     serviceName: 'order',
     runtimeService: 'order',
     testService: 'order-tests',
