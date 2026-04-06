@@ -5,7 +5,7 @@ serviceBuildTest(
     runtimeService: 'product',
     testService: 'product-tests',
     startDeps: ['postgres'],
-    reportGlob: 'reports/product/junit.xml'
+    reportGlob: 'reports/product/junit.xml',
     sonarEnabled: true,
     trivyEnabled: true,
     sonarProjectKey: 'micro-ecom-product',

@@ -5,7 +5,7 @@ serviceBuildTest(
     runtimeService: 'payment',
     testService: 'payment-tests',
     startDeps: ['postgres', 'rabbit', 'product', 'order'],
-    reportGlob: 'reports/payment/junit.xml'
+    reportGlob: 'reports/payment/junit.xml',
     sonarEnabled: true,
     trivyEnabled: true,
     sonarProjectKey: 'micro-ecom-auth',
