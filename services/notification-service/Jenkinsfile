@@ -1,15 +1,15 @@
 @Library('jenkins-shared-library') _
 
-serviceBuildTest(
-    serviceName: 'payment',
-    runtimeService: 'payment',
-    testService: 'payment-tests',
-    startDeps: ['postgres', 'rabbit', 'product', 'order'],
-    reportGlob: 'reports/payment/junit.xml',
+Pipeline(
+    serviceName: 'notification',
+    runtimeService: 'notification',
+    testService: 'notification-tests',
+    startDeps: ['postgres', 'rabbit'],
+    reportGlob: 'reports/notification/junit.xml',
     sonarEnabled: true,
     trivyEnabled: true,
-    sonarProjectKey: 'micro-ecom-auth',
-    sonarProjectName: 'micro-ecom-auth',
+    sonarProjectKey: 'micro-ecom-notification',
+    sonarProjectName: 'micro-ecom-notification',
     sonarSources: 'src',
     sonarExtraArgs: '-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info'
 )

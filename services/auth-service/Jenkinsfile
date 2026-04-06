@@ -1,6 +1,6 @@
 @Library('jenkins-shared-library') _
 
-serviceBuildTest(
+Pipeline(
     serviceName: 'auth',
     runtimeService: 'auth',
     testService: 'auth-tests',

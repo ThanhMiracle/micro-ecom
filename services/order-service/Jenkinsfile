@@ -1,6 +1,6 @@
 @Library('jenkins-shared-library') _
 
-serviceBuildTest(
+Pipeline(
     serviceName: 'order',
     runtimeService: 'order',
     testService: 'order-tests',
@@ -8,8 +8,8 @@ serviceBuildTest(
     reportGlob: 'reports/order/junit.xml',
     sonarEnabled: true,
     trivyEnabled: true,
-    sonarProjectKey: 'micro-ecom-auth',
-    sonarProjectName: 'micro-ecom-auth',
+    sonarProjectKey: 'micro-ecom-order',
+    sonarProjectName: 'micro-ecom-order',
     sonarSources: 'src',
     sonarExtraArgs: '-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info'
 )

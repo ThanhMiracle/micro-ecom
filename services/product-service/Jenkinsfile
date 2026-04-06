@@ -1,6 +1,6 @@
 @Library('jenkins-shared-library') _
 
-serviceBuildTest(
+Pipeline(
     serviceName: 'product',
     runtimeService: 'product',
     testService: 'product-tests',
