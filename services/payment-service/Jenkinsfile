@@ -10,6 +10,6 @@ PipeLine(
     trivyEnabled: true,
     sonarProjectKey: 'micro-ecom-payment',
     sonarProjectName: 'micro-ecom-payment',
-    sonarSources: 'src',
+    sonarSources: 'app',
     sonarExtraArgs: '-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info'
 )
